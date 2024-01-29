@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# PyImg.py
+# PyImgScale.py
 
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget,
                              QHBoxLayout, QFileDialog, QDialogButtonBox, QLabel, QListWidget,
