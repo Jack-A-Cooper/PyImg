@@ -108,7 +108,7 @@ class ImageProcessor(QMainWindow):
         super().__init__()
         self.filesystem_panel = FolderView()
         self.filesystem_panel.default_root_changed.connect(self.ask_set_default_root)
-        self.settings = QSettings("User", "PyImg")
+        self.settings = QSettings("User", "PyImgScale")
         self.filePaths = []
         self.initUI()
 
@@ -125,7 +125,7 @@ class ImageProcessor(QMainWindow):
 
     def initUI(self):
         # Set window properties
-        self.setWindowTitle("PyImg")
+        self.setWindowTitle("PyImgScale")
         self.setGeometry(0, 0, 1280, 720)
         self.resize(self.settings.value("size", QSize(1280, 720)))
         self.save_directory = None
