@@ -1,5 +1,7 @@
 # PyImgScale - Image Processing Tool
 
+![Alt Text](util/PyImgScale.png)
+
 ## Overview
 PyImgScale is an intuitive GUI application built with PyQt5, designed for easy and efficient image processing. It allows users to upscale, downscale, and convert images between various formats. PyImgScale provides a user-friendly interface to navigate through the filesystem, select images for processing, and manage processing queues.
 
