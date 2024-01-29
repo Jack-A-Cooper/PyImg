@@ -67,3 +67,6 @@ As a very small solo project, contributions to PyImgScale are not welcome. Howev
 
 ## License
 PyImgScale is released under the [MIT License](LICENSE).
+
+## Disclaimer
+PyImgScale is in no way related to or apart of 'PyImg'.
