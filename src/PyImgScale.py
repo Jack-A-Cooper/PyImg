@@ -15,7 +15,6 @@ import time
 import sys
 import threading
 
-
 ### CLASSES ======== CLASSES ======== CLASSES ###
 
 # ||| FolderView ||| #
@@ -80,7 +79,6 @@ class FolderView(QWidget):
             self.tree.setRootIndex(new_index)
             self.tree.setCurrentIndex(new_index)
 
-
 # ||| Worker ||| #
 #
 class Worker(QObject):
@@ -98,7 +96,6 @@ class Worker(QObject):
             progress_percent = ((i + 1) / total_files) * 100
             self.progress.emit(int(progress_percent))
         self.finished.emit()
-
 
 # ||| ImageProcessor ||| #
 #
@@ -653,7 +650,6 @@ class ImageProcessor(QMainWindow):
 
         self.update_file_info_list()
         self.update_preview()
-
 
 def main():
     app = QApplication(sys.argv)
