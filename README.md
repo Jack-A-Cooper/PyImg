@@ -11,12 +11,12 @@ It is still currently in active development.
 PyImgScale is not finished at the moment. There are still a few bugs, code cleaning, and features to implement (image upscaling/downscaling are close to being implemented, but just have not gotten around it just yet!). Single file and batch conversions of files should 
 
 ## Features
-- **Filesystem Navigation**: Browse through your file system within the app to locate images.
-- **Image Processing**: Upscale or downscale images with selectable scale factors.
-- **Format Conversion**: Convert images between popular formats like PNG, JPG, BMP, and more.
-- **Batch Processing**: Process multiple images at once, with progress tracking via a progress bar.
-- **Preview Thumbnails**: View thumbnails of the selected images before processing.
-- **Customizable Save Directory**: Choose a custom directory where processed images will be saved.
+- **Filesystem Navigation**: Browse through your file system within the app to locate images. (Implemented)
+- **Image Processing**: Upscale or downscale images with selectable scale factors. (Implemented - WIP)
+- **Format Conversion**: Convert images between popular formats like PNG, JPG, BMP, and more. (Implemented - WIP)
+- **Batch Processing**: Process multiple images at once, with progress tracking via a progress bar. (Implemented)
+- **Preview Thumbnails**: View thumbnails of the selected images before processing. (Planned)
+- **Customizable Save Directory**: Choose a custom directory where processed images will be saved. (Implemented)
 
 ## Prerequisites
 Before running PyImgScale, ensure you have the following installed:
