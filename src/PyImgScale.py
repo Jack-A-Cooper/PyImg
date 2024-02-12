@@ -1,3 +1,4 @@
+
 #!/usr/bin/python3
 
 # PyImgScale.py
@@ -7,7 +8,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout
                              QComboBox, QMessageBox, QListWidgetItem, QDialog,
                              QGridLayout, QDesktopWidget, QProgressBar, QGroupBox,
                              QRadioButton, QTreeView, QFileSystemModel)
-from PyQt5.QtCore import QSize, QSettings, pyqtSignal, QObject, QStandardPaths, QThread
+from PyQt5.QtCore import Qt, QSize, QSettings, pyqtSignal, QObject, QStandardPaths, QThread
 from PyQt5.QtGui import QPixmap
 from PIL import Image
 import os
@@ -81,21 +82,74 @@ class FolderView(QWidget):
 
 # ||| Worker ||| #
 #
-class Worker(QObject):
-    finished = pyqtSignal()
+class Worker(QThread):
+    finished = pyqtSignal(str)  # Emit the file path that was processed
     progress = pyqtSignal(int)
 
-    def __init__(self, filePaths, *args, **kwargs):
+    def __init__(self, filePaths, processing_mode, save_directory, scale_factor, convert_from_format, convert_to_format,
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.filePaths = filePaths
+        self.processing_mode = processing_mode
+        self.save_directory = save_directory
+        self.scale_factor = scale_factor  # Passed in directly, not from a combo
+        self.convert_from_format = convert_from_format  # Passed in directly
+        self.convert_to_format = convert_to_format  # Passed in directly
 
     def run(self):
         total_files = len(self.filePaths)
         for i, file_path in enumerate(self.filePaths):
-            time.sleep(0.1)
-            progress_percent = ((i + 1) / total_files) * 100
-            self.progress.emit(int(progress_percent))
-        self.finished.emit()
+            try:
+                if self.processing_mode == 'upscale':
+                    self.upscale_image(file_path)
+                elif self.processing_mode == 'downscale':
+                    self.downscale_image(file_path)
+                elif self.processing_mode == 'convert':
+                    self.convert_image(file_path)
+            except Exception as e:
+                print(f"An error occurred while processing {file_path}: {e}")
+            self.finished.emit(file_path)
+            # Emit progress after each file is processed
+            progress_percent = int(((i + 1) / total_files) * 100)
+            self.progress.emit(progress_percent)
+            self.finished.emit(file_path)  # Emit finished signal with file path
+
+    def upscale_image(self, file_path):
+        with Image.open(file_path) as img:
+            # Parse the scale factor and upscale the image
+            scale = float(self.scale_factor.rstrip('x'))
+            new_dimensions = (int(img.width * scale), int(img.height * scale))
+            upscaled_img = img.resize(new_dimensions, Image.LANCZOS)
+
+            # Save the upscaled image
+            new_file_name = f"upscaled_{os.path.basename(file_path)}"
+            target_path = os.path.join(self.save_directory, new_file_name)
+            upscaled_img.save(target_path)
+
+    def downscale_image(self, file_path):
+        with Image.open(file_path) as img:
+            # Parse the scale factor and downscale the image
+            scale = float(self.scale_factor.rstrip('x'))
+            new_dimensions = (int(img.width / scale), int(img.height / scale))
+            downscaled_img = img.resize(new_dimensions, Image.LANCZOS)
+
+            # Save the downscaled image
+            new_file_name = f"downscaled_{os.path.basename(file_path)}"
+            target_path = os.path.join(self.save_directory, new_file_name)
+            downscaled_img.save(target_path)
+
+    def convert_image(self, file_path):
+        with Image.open(file_path) as img:
+            # Save the image in the new format
+            new_file_name = f"{os.path.splitext(os.path.basename(file_path))[0]}.{self.convert_to_format}"
+            target_path = os.path.join(self.save_directory, new_file_name)
+            img.save(target_path)
+
+    def get_new_file_path(self, file_path, suffix):
+        base, ext = os.path.splitext(file_path)
+        new_file_name = f"{base}{suffix}{ext}"
+        new_file_path = os.path.join(self.save_directory, new_file_name)
+        return new_file_path
 
 # ||| ImageProcessor ||| #
 #
@@ -103,16 +157,18 @@ class ImageProcessor(QMainWindow):
     def __init__(self):
         # Init GUI
         super().__init__()
+        self.processing_mode = None
         self.filesystem_panel = FolderView()
         self.filesystem_panel.default_root_changed.connect(self.ask_set_default_root)
         self.settings = QSettings("User", "PyImgScale")
         self.filePaths = []
+        self.scale_factor = "1.0x"
+        self.convert_from_format = "png"
+        self.convert_to_format = "png"
         self.initUI()
 
         # Multithreading
-        self.worker = Worker(self.filePaths)
-        self.worker.finished.connect(self.processing_finished)
-        self.worker.progress.connect(self.update_progress_bar)
+        self.worker = None
 
         # Set starting window placement
         qtRectangle = self.frameGeometry()
@@ -144,6 +200,7 @@ class ImageProcessor(QMainWindow):
         center_layout.addWidget(self.create_process_button())
         center_layout.addWidget(self.create_file_info_panel_layout())
         center_layout.addWidget(self.create_processing_queue_control_panel_layout())
+        center_layout.addWidget(self.create_image_preview_section_layout())
         main_layout.addLayout(center_layout, 2)
 
         # saved queue panels (right)
@@ -192,6 +249,10 @@ class ImageProcessor(QMainWindow):
 
         self.scale_factor_combo = QComboBox(self)
         self.scale_factor_combo.addItems(["1.5x", "2x", "4x", "6x", "8x"])
+        # Set the default scale factor as the first item in the combo box
+        self.scale_factor = self.scale_factor_combo.itemText(0)
+        # Connect the combo box's signal to the method
+        self.scale_factor_combo.currentTextChanged.connect(self.on_scale_factor_changed)
         h_layout.addWidget(QLabel("Scale Factor:"))
         h_layout.addWidget(self.scale_factor_combo)
 
@@ -217,27 +278,39 @@ class ImageProcessor(QMainWindow):
 
         self.upscale_btn = QRadioButton('Upscale', self)
         self.upscale_btn.clicked.connect(self.processing_logic)
+
         process_selection_layout.addWidget(self.upscale_btn)
 
         self.downscale_btn = QRadioButton('Downscale', self)
         self.downscale_btn.clicked.connect(self.processing_logic)
+
         process_selection_layout.addWidget(self.downscale_btn)
 
         self.convert_btn = QRadioButton('Convert', self)
         self.convert_btn.clicked.connect(self.processing_logic)
+
         process_selection_layout.addWidget(self.convert_btn)
 
         self.convert_from_combo = QComboBox(self)
         self.convert_from_combo.addItems(["png", "jpg/jpeg", "pdf", "tga", "bmp"])
+        # Set the default convert from format as the first item in the combo box
+        self.convert_from_format = self.convert_from_combo.itemText(0).split('/')[0]
+        self.convert_from_combo.currentTextChanged.connect(self.on_convert_from_format_changed)
+
         process_selection_layout.addWidget(QLabel("Convert From:"))
         process_selection_layout.addWidget(self.convert_from_combo)
 
         self.convert_to_combo = QComboBox(self)
         self.convert_to_combo.addItems(["png", "jpg/jpeg", "pdf", "tga", "bmp"])
+        # Set the default convert to format as the first item in the combo box
+        self.convert_to_format = self.convert_to_combo.itemText(0).split('/')[0]
+        self.convert_to_combo.currentTextChanged.connect(self.on_convert_to_format_changed)
+
         process_selection_layout.addWidget(QLabel("Convert To:"))
         process_selection_layout.addWidget(self.convert_to_combo)
 
         control_process_group.setLayout(process_selection_layout)
+
         return control_process_group
 
     def create_eta_label(self):
@@ -315,23 +388,25 @@ class ImageProcessor(QMainWindow):
 
     def create_image_preview_section_layout(self):
         preview_widget_group = QGroupBox("Image Preview Panel: ", self)
-        preview_image_layout = QHBoxLayout()
+        self.preview_layout = QGridLayout()  # Changed from QHBoxLayout to QGridLayout
 
-        self.preview_widget = QLabel("Preview not available", self)
-        preview_image_layout.addWidget(self.preview_widget)
+        # Initialize an empty QLabel to serve as a placeholder for the preview
+        self.preview_placeholder = QLabel("Preview not available", self)
+        self.preview_layout.addWidget(self.preview_placeholder, 0, 0)
 
-        preview_widget_group.setLayout(preview_image_layout)
+        preview_widget_group.setLayout(self.preview_layout)
         return preview_widget_group
 
     ## ==== [ CONTROL/LOGIC FLOW ] ==== ##
 
     # [ Control logic ] #
     def processing_logic(self):
-        if not self.convert_btn.isChecked():
-            upscale = self.upscale_btn.isChecked()
-            self.process_images(upscale)
-        else:
-            self.convert_images()
+        if self.upscale_btn.isChecked():
+            self.processing_mode = 'upscale'
+        elif self.downscale_btn.isChecked():
+            self.processing_mode = 'downscale'
+        elif self.convert_btn.isChecked():
+            self.processing_mode = 'convert'
 
     # [ Upscale | Downscale ] #
     def scale_images_logic(self):
@@ -347,6 +422,17 @@ class ImageProcessor(QMainWindow):
     def closeEvent(self, event):
         self.settings.setValue("size", self.size())
         super().closeEvent(event)
+
+    ## ==== UI BUTTON CONNECTIONS ==== ##
+
+    def on_scale_factor_changed(self, text):
+        self.scale_factor = text
+
+    def on_convert_from_format_changed(self, text):
+        self.convert_from_format = text.split('/')[0]  # Assuming 'jpg/jpeg' is a single option, take 'jpg'
+
+    def on_convert_to_format_changed(self, text):
+        self.convert_to_format = text.split('/')[0]  # Assuming 'jpg/jpeg' is a single option, take 'jpg'
 
     ## ==== FolderView Child Class Helpers ==== ##
 
@@ -431,27 +517,25 @@ class ImageProcessor(QMainWindow):
         self.total_info_label.setText(f"Total Files: {total_files}, Total Size: {total_size:.2f} MB")
 
     def update_preview(self):
-        # First, clear the existing previews
-        while self.preview_widget.count():
-            widget = self.preview_widget.takeAt(0).widget()
-        if widget is not None:
-            widget.deleteLater()
-
-        # Add new previews for each image in the list
-        for file_path in self.filePaths:
-            label = QLabel()
-            pixmap = QPixmap(file_path)
-            label.setPixmap(pixmap.scaled(100, 100, Qt.KeepAspectRatio))
-            self.preview_widget.addWidget(label)
-
-        some_columns = 6  # For example, let's say you want 3 thumbnails per row.
-        # Clear the current preview by removing widgets from the layout.
-        while self.preview_widget.count():
-            widget = self.preview_widget.takeAt(0).widget()
-            if widget is not None:
+        # First, clear the existing previews except the placeholder
+        for i in reversed(range(self.preview_layout.count())): 
+            widget = self.preview_layout.itemAt(i).widget()
+            if widget != self.preview_placeholder:  # Keep the placeholder
+                self.preview_layout.removeWidget(widget)
                 widget.deleteLater()
 
-        # Add new previews for each image in the list.
+        # If there are no images to display, ensure the placeholder is shown
+        if not self.filePaths:
+            if self.preview_placeholder.parent() is None:
+                self.preview_layout.addWidget(self.preview_placeholder, 0, 0)
+            return
+
+        # Remove the placeholder from the layout if there are images to display
+        self.preview_layout.removeWidget(self.preview_placeholder)
+        self.preview_placeholder.hide()
+
+        # Add new previews for each image in the list
+        some_columns = 6  # Adjust the number of columns as needed
         for idx, file_path in enumerate(self.filePaths):
             if os.path.exists(file_path):  # Check if the image file exists.
                 label = QLabel()
@@ -461,20 +545,19 @@ class ImageProcessor(QMainWindow):
                     label.setPixmap(scaled_pixmap)
                     row = idx // some_columns  # Calculate the row index.
                     col = idx % some_columns  # Calculate the column index.
-                    self.preview_widget.addWidget(label, row, col)
+                    self.preview_layout.addWidget(label, row, col)
                 else:
                     print(f"Failed to load image: {file_path}")
 
     ## ==== PROCESSING QUEUE ==== ##
 
     def add_to_queue(self):
-        # Allow users to select images to add to the queue
         files, _ = QFileDialog.getOpenFileNames(self, "Select Images", "", "Images (*.png *.jpg *.jpeg *.bmp *.gif)")
         for file in files:
-            if file and file not in self.filePaths:  # Avoid duplicates
+            if file and file not in self.filePaths:  # Avoid duplicates in the file info list
                 self.filePaths.append(file)
-                self.queue_panel.addItem(file)  # Add the file to the queue list
-                self.update_file_info_list()  # Optional: Update the file info list if necessary
+                self.file_info_list.addItem(file)  # Add to the file info list
+        self.update_processing_queue_label()  # Update the processing queue label
 
     def remove_from_queue(self):
         # Remove selected images from the queue
@@ -494,6 +577,16 @@ class ImageProcessor(QMainWindow):
 
         self.update_file_info_list()  # Update the file info list if necessary
 
+    def update_processing_queue_label(self):
+        total_size = 0
+        for i in range(self.queue_panel.count()):
+            file_path = self.queue_panel.item(i).text()
+            if os.path.isfile(file_path):
+                total_size += os.path.getsize(file_path)
+
+        total_size_mb = total_size / (1024 * 1024)  # Convert bytes to megabytes
+        self.total_processing_queue_label.setText(f"Total Files: {self.queue_panel.count()}, Total Size: {total_size_mb:.2f} MB")
+
     ## ==== PROCESSING QUEUE - HELPERS ==== ##
 
     def estimate_processing_time(self):
@@ -510,6 +603,15 @@ class ImageProcessor(QMainWindow):
         elapsed_time = end_time - start_time
         total_time = elapsed_time * len(self.filePaths)
         self.eta_label.setText(f"Estimated Time: {total_time:.2f} seconds")
+
+    def on_scale_factor_changed(self, text):
+        self.scale_factor = text
+
+    def on_convert_from_format_changed(self, text):
+        self.convert_from_format = text.split('/')[0]  # Assuming 'jpg/jpeg' is a single option, take 'jpg'
+
+    def on_convert_to_format_changed(self, text):
+        self.convert_to_format = text.split('/')[0]  # Assuming 'jpg/jpeg' is a single option, take 'jpg'
 
     ## ==== FILE PROCESSING - MULTITHREADING ==== ##
 
@@ -528,32 +630,33 @@ class ImageProcessor(QMainWindow):
         return []
 
     def process_queue(self):
-        # Update progress bar showing
-        self.processing_queue_pbar.setHidden(False)
+        # Get the values from the combo boxes directly
+        scale_factor = self.scale_factor_combo.currentText()
+        convert_from_format = self.convert_from_combo.currentText().split('/')[
+            0]  # Assuming 'jpg/jpeg' is a single option, take 'jpg'
+        convert_to_format = self.convert_to_combo.currentText().split('/')[
+            0]  # Assuming 'jpg/jpeg' is a single option, take 'jpg'
 
-        # Create the worker with the list of image paths
-        self.worker = Worker(self.filePaths)
-        self.worker.finished.connect(self.processing_finished)
-        self.worker.progress.connect(self.update_progress_bar)
-
-        # Start processing in a thread
-        processing_thread = threading.Thread(target=self.worker.run)
-        processing_thread.start()
+        if self.worker is None or not self.worker.isRunning():
+            self.worker = Worker(self.filePaths, self.processing_mode, self.save_directory, scale_factor,
+                                 convert_from_format, convert_to_format)
+            self.worker.finished.connect(self.file_processed)
+            self.worker.progress.connect(self.update_progress_bar)
+            self.worker.start()
+    
+    def file_processed(self, file_path):
+        for i in range(self.queue_panel.count()):
+            if self.queue_panel.item(i).text() == file_path:
+                self.queue_panel.takeItem(i)
+                break
 
     def start_processing(self):
         # Perform the image processing tasks
         for file_path in self.filePaths:
             try:
-                # Here, you would call the appropriate processing function
-                # For example: self.upscale_image(file_path) or self.downscale_image(file_path)
-                print(f"Processing {file_path}")  # Placeholder for actual processing logic
+                print(f"Processing {file_path}")
             except Exception as e:
                 print(f"An error occurred while processing {file_path}: {e}")
-
-        # Once processing is complete, update the UI accordingly
-        # This should be done in a thread-safe way since PyQt doesn't allow
-        # direct UI manipulation from a secondary thread
-        # ...
 
     def processing_finished(self):
         self.update_progress_bar(100)
@@ -569,7 +672,7 @@ class ImageProcessor(QMainWindow):
             self.update_progress_bar(i)
 
     def update_progress_bar(self, value):
-        # This method is to ensure thread-safe updates to the progress bar
+        # This method ensures thread-safe updates to the progress bar
         self.processing_queue_pbar.setValue(value)
 
     ## ==== FILE PROCESSING - SINGLE THREADING ==== ##
@@ -655,6 +758,7 @@ def main():
     app = QApplication(sys.argv)
     # Style setting
     style = 'Fusion'
+    # Other style settings
     # style = 'Cleanlooks'
     # style = 'Windows'
     app.setStyle(style)
