@@ -7,16 +7,19 @@ PyImgScale is a local GUI image processing application built on PyQt5 and Pillow
 
 It is still currently in active development.
 
+## Current Version
+V0.2
+
 ## Note
 PyImgScale is not finished at the moment. There are still a few bugs, code cleaning, and features to implement (image upscaling/downscaling are close to being implemented, but just have not gotten around it just yet!). Single file and batch conversions of files should 
 
 ## Features
-- **Filesystem Navigation**: Browse through your file system within the app to locate images. Customizable with the ability to change the working directory at any time. Default is set to the directory where the script resides. (Implemented)
-- **Image Processing**: Upscale or downscale images with selectable scale factors. Currently allows for 1.5x, 2x, 4x, and 8x upscaling/downscaling. Multithreaded implementation promotes speed and efficiency. (Implemented)
-- **Format Conversion**: Convert images between popular formats: PNG, JPG, BMP, TGA, and PDF. (Implemented)
-- **Batch Processing**: Process multiple images at once, with progress tracking via a progress bar. Configure settings for single file, batch, or directory processing configurations. (Implemented)
-- **Preview Thumbnails**: View thumbnails of the selected images after processing. See at a glance what files you have processed. (Implemented - WIP)
-- **Customizable Save Directory**: Choose the directory where processed images will be saved. Whenever necessary, configure where you wish to save your processsed images. (Implemented)
+- **Filesystem Navigation**: Browse through your file system within the app to locate images. Customizable with the ability to change the working directory at any time. Default is set to the directory where the script resides.
+- **Image Processing**: Upscale or downscale images with selectable scale factors. Currently allows for 1.5x, 2x, 4x, and 8x upscaling/downscaling. Multithreaded implementation promotes speed and efficiency.
+- **Format Conversion**: Convert images between popular formats: PNG, JPG, BMP, TGA, and PDF.
+- **Batch Processing**: Process multiple images at once, with progress tracking via a progress bar. Configure settings for single file, batch, or directory processing configurations.
+- **Preview Thumbnails**: View thumbnails of the selected images after processing. See at a glance what files you have processed.
+- **Customizable Save Directory**: Choose the directory where processed images will be saved. Whenever necessary, configure where you wish to save your processsed images.
 
 ## Showcase
 ![Alt Text](util/v0.2/upscaled_2.png)
