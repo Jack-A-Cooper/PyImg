@@ -18,15 +18,20 @@ PyImgScale is not finished at the moment. There are still a few bugs, code clean
 - **Preview Thumbnails**: View thumbnails of the selected images after processing. See at a glance what files you have processed. (Implemented - WIP)
 - **Customizable Save Directory**: Choose the directory where processed images will be saved. Whenever necessary, configure where you wish to save your processsed images. (Implemented)
 
+## Showcase
 ![Alt Text](util/v0.2/upscaled_2.png)
+
+![Alt Text](util/v0.2/upscaled_3.png)
+
+![Alt Text](util/v0.2/upscaled_4.png)
+
+![Alt Text](util/v0.2/upscaled_5.png)
 
 ## Prerequisites
 Before running PyImgScale, ensure you have the following installed:
 - Python 3.x
 - PyQt5
 - Pillow (PIL Fork)
-
-![Alt Text](util/v0.2/upscaled_3.png)
 
 You can install the required packages using pip:
 ```sh
@@ -38,7 +43,6 @@ To start the application, navigate to the script's directory and run:
 ```sh
 python PyImgScale.py
 ```
-![Alt Text](util/v0.2/upscaled_4.png)
 
 Once started, the application will present you with the main interface where you can navigate your filesystem, select images, choose processing options, and initiate image processing.
 
@@ -47,8 +51,6 @@ This tool is currently under development. Some features might not be fully imple
 
 ## Contributing
 As a very small solo project, contributions to PyImgScale are not welcome. However, please feel free to fork the repository and modify it to your heart's content!
-
-![Alt Text](util/v0.2/upscaled_5.png)
 
 ## License
 PyImgScale is released under the [MIT License](LICENSE).
