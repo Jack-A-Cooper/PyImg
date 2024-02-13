@@ -3,16 +3,17 @@
 
 import os
 import sys
-import time
+from pathlib import Path
 
 from PIL import Image
-from PyQt5.QtCore import Qt, QSize, QSettings, pyqtSignal, QObject, QStandardPaths, QThread
+from PyQt5.QtCore import Qt, QSize, QSettings, pyqtSignal, QStandardPaths, QThread
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget,
-                              QHBoxLayout, QFileDialog, QDialogButtonBox, QLabel, QListWidget,
-                              QComboBox, QMessageBox, QListWidgetItem, QDialog,
-                              QGridLayout, QDesktopWidget, QProgressBar, QGroupBox,
-                              QRadioButton, QTreeView, QFileSystemModel, QScrollArea)
+                             QHBoxLayout, QFileDialog, QLabel, QListWidget,
+                             QComboBox, QMessageBox, QListWidgetItem, QGridLayout, QDesktopWidget, QProgressBar,
+                             QGroupBox,
+                             QRadioButton, QTreeView, QFileSystemModel, QScrollArea,
+                             QTabWidget)
 
 PREVIEW_IMAGE_WIDTH = 200
 PREVIEW_IMAGE_HEIGHT = 200
@@ -26,6 +27,7 @@ class FolderView(QWidget):
         self.init_me()
 
     def init_me(self):
+        pass
         self.model = QFileSystemModel()
         self.default_root_changed.connect(self.update_path_label)
         script_directory = os.path.dirname(os.path.abspath(__file__))
@@ -42,7 +44,12 @@ class FolderView(QWidget):
         self.change_dir_btn = QPushButton('Change Directory', self)
         self.change_dir_btn.clicked.connect(self.change_directory)
 
-        self.saved_queue_list = QListWidget(self)
+        self.change_dir_btn.setToolTip(
+            "Sets the directory path that is viewable in this panel. Default is the directory where this script resides.")
+
+        self.filesystem_panel_label.setMinimumHeight(20)
+        self.filesystem_panel_label.setBaseSize(25, 25)
+        self.tree.setMinimumWidth(100)
 
         window_layout = QVBoxLayout()
         window_layout.addWidget(self.filesystem_panel_label)
@@ -77,14 +84,31 @@ class FolderView(QWidget):
             self.tree.setRootIndex(new_index)
             self.tree.setCurrentIndex(new_index)
 
+class imageItem(QListWidgetItem):
+    def __init__(self, fileName, fullPath):
+        super().__init__(fileName)
+        self.fullPath = fullPath
+        self.fileName = fileName
+        self.fileType = os.path.splitext(fileName)[1]
+        self.fileSize = os.path.getsize(fullPath)
+
+    @staticmethod
+    def format_size(size_in_bytes):
+        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+            if size_in_bytes < 1024.0:
+                return f"{size_in_bytes:.2f}{unit}"
+            size_in_bytes /= 1024.0
+        return f"{size_in_bytes:.2f}PB"
+
 class Worker(QThread):
     progress = pyqtSignal(int)
-    finished = pyqtSignal(str, str)
+    file_processed = pyqtSignal(imageItem, str)
+    finished_processing_all = pyqtSignal(bool)
 
-    def __init__(self, filePaths, processing_mode, save_directory, scale_factor, convert_from_format, convert_to_format,
-                 *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.filePaths = filePaths
+    def __init__(self, imagesToProcess, processing_mode, save_directory, scale_factor, convert_from_format,
+                 convert_to_format):
+        super().__init__()
+        self.imagesToProcess = imagesToProcess
         self.processing_mode = processing_mode
         self.save_directory = save_directory
         self.scale_factor = scale_factor
@@ -92,32 +116,35 @@ class Worker(QThread):
         self.convert_to_format = convert_to_format
 
     def run(self):
-        # BUG HERE - duplicates (doubles) the amount of filePaths -> processes both info panel AND processing
-        # queue files when it should only do processing queue files
-        total_files = len(self.filePaths)
-        for i, file_path in enumerate(self.filePaths):
-            try:
-                original_file_path = file_path
+        total_files = len(self.imagesToProcess)
+        self.finished_processing_all.emit(False)
+        for i, image in enumerate(self.imagesToProcess):
+            if isinstance(image, imageItem):
+                file_path = image.fullPath
+                try:
+                    if not os.path.exists(file_path):
+                        print(f"File does not exist: {file_path}")
+                        continue
 
-                if self.processing_mode == 'upscale':
-                    operation_suffix = f"_upscaled{self.scale_factor}"
-                    self.upscale_image(file_path)
-                elif self.processing_mode == 'downscale':
-                    operation_suffix = f"_downscaled{self.scale_factor}"
-                    self.downscale_image(file_path)
-                elif self.processing_mode == 'convert':
-                    operation_suffix = f"_converted{self.convert_from_format}_to_{self.convert_to_format}"
-                    self.convert_image(file_path)
-                else:
-                    operation_suffix = ""
+                    operation_suffix = ''
+                    if self.processing_mode == 'upscale':
+                        operation_suffix = "_upscaled"
+                        self.upscale_image(file_path)
+                    elif self.processing_mode == 'downscale':
+                        operation_suffix = "_downscaled"
+                        self.downscale_image(file_path)
+                    elif self.processing_mode == 'convert':
+                        operation_suffix = f"_converted_to_{self.convert_to_format}"
+                        self.convert_image(file_path)
 
-                self.finished.emit(original_file_path, operation_suffix)
+                    self.file_processed.emit(image, operation_suffix)
 
-            except Exception as e:
-                print(f"An error occurred while processing {file_path}: {e}")
+                except Exception as e:
+                    print(f"An error occurred while processing {file_path}: {e}")
 
-            progress_percent = int(((i + 1) / total_files) * 100)
-            self.progress.emit(progress_percent)
+                progress_percent = int(((i + 1) / total_files) * 100)
+                self.progress.emit(progress_percent)
+        self.finished_processing_all.emit(True)
 
     def upscale_image(self, file_path):
         with Image.open(file_path) as img:
@@ -146,8 +173,11 @@ class Worker(QThread):
             img.save(target_path)
 
     def get_new_file_path(self, file_path, suffix):
-        base, ext = os.path.splitext(file_path)
-        new_file_name = f"{base}{suffix}{ext}"
+        base, original_ext = os.path.splitext(file_path)
+        if self.processing_mode == 'convert':
+            new_file_name = f"{os.path.basename(base)}{suffix}.{self.convert_to_format}"
+        else:
+            new_file_name = f"{os.path.basename(base)}{suffix}{original_ext}"
         new_file_path = os.path.join(self.save_directory, new_file_name)
         return new_file_path
 
@@ -158,18 +188,32 @@ class ImageProcessor(QMainWindow):
         self.filesystem_panel = FolderView()
         self.filesystem_panel.default_root_changed.connect(self.ask_set_default_root)
         self.settings = QSettings("User", "PyImgScale")
-        self.filePaths = []
         self.scale_factor = "1.0x"
         self.convert_from_format = "png"
         self.convert_to_format = "png"
-        self.initUI()
-
         self.worker = None
+        self.preview_layout = QGridLayout()
+        self.initUI()
 
         qtRectangle = self.frameGeometry()
         centerPoint = QDesktopWidget().availableGeometry().center()
         qtRectangle.moveCenter(centerPoint)
         self.move(qtRectangle.topLeft())
+
+    def prepare_worker(self, imagesToProcess, processing_mode, save_directory, scale_factor, convert_from_format,
+                       convert_to_format):
+        self.worker = Worker(
+            imagesToProcess, processing_mode, save_directory,
+            scale_factor, convert_from_format, convert_to_format
+        )
+        self.worker.progress.connect(self.update_progress_bar)
+        self.worker.file_processed.connect(self.file_processed)
+        self.worker.finished_processing_all.connect(self.on_all_files_processed)
+
+    def initialize_worker_settings(self):
+        self.scale_factor = self.scale_factor_combo.currentText()
+        self.convert_from_format = self.convert_from_combo.currentText().split('/')[0]
+        self.convert_to_format = self.convert_to_combo.currentText().split('/')[0]
 
     def initUI(self):
         self.setWindowTitle("PyImgScale")
@@ -179,30 +223,69 @@ class ImageProcessor(QMainWindow):
 
         main_layout = QHBoxLayout()
 
-        self.filesystem_panel = FolderView()
-        main_layout.addWidget(self.filesystem_panel, 2)
+        tabsLeft = QTabWidget()
+        tabsLeft.addTab(self.fileSystemTabUI(), "File System")
+        tabsLeft.addTab(self.fileInfoTabUI(), "Imported Files")
+        tabsLeft.addTab(self.optionsTabUI(), "Options")
+        main_layout.addWidget(tabsLeft)
 
         center_layout = QVBoxLayout()
-        center_layout.addWidget(self.create_process_settings_layout())
-        center_layout.addWidget(self.create_scale_settings_layout())
-        center_layout.addWidget(self.create_save_dir_settings_layout())
         center_layout.addWidget(self.create_type_processing_buttons_layout())
         center_layout.addWidget(self.create_eta_label())
+        center_layout.addWidget(self.create_progress_bar_layout())
         center_layout.addWidget(self.create_process_button())
-        center_layout.addWidget(self.create_file_info_panel_layout())
         center_layout.addWidget(self.create_processing_queue_control_panel_layout())
-        center_layout.addWidget(self.create_image_preview_section_layout())
-        main_layout.addLayout(center_layout, 2)
 
-        right_layout = QVBoxLayout()
-        right_layout.addWidget(self.create_saved_queue_panel_layout())
-        main_layout.addLayout(right_layout, 1)
+        main_layout.addLayout(center_layout)
+
+        tabsRight = QTabWidget()
+        tabsRight.addTab(self.completedFilesPreviewTabUI(), "Completed Files Preview")
+        tabsRight.addTab(self.savedFilesTabUI(), "Saved Files")
+        main_layout.addWidget(tabsRight)
 
         container = QWidget()
         container.setLayout(main_layout)
         self.setCentralWidget(container)
 
-    def create_saved_queue_panel_layout(self):
+    def fileSystemTabUI(self):
+        optionsTab = QWidget()
+        layout = QVBoxLayout()
+        self.filesystem_panel = FolderView()
+        layout.addWidget(self.filesystem_panel)
+        optionsTab.setLayout(layout)
+        return optionsTab
+
+    def fileInfoTabUI(self):
+        imagePreviewsTab = QWidget()
+        layout = QVBoxLayout()
+        layout.addWidget(self.create_file_info_panel_layout())
+        imagePreviewsTab.setLayout(layout)
+        return imagePreviewsTab
+
+    def optionsTabUI(self):
+        optionsTab = QWidget()
+        layout = QVBoxLayout()
+        layout.addWidget(self.create_process_settings_layout())
+        layout.addWidget(self.create_scale_settings_layout())
+        layout.addWidget(self.create_save_dir_settings_layout())
+        optionsTab.setLayout(layout)
+        return optionsTab
+
+    def completedFilesPreviewTabUI(self):
+        optionsTab = QWidget()
+        layout = QVBoxLayout()
+        layout.addWidget(self.create_image_preview_section_layout())
+        optionsTab.setLayout(layout)
+        return optionsTab
+
+    def savedFilesTabUI(self):
+        imagePreviewsTab = QWidget()
+        layout = QVBoxLayout()
+        layout.addWidget(self.create_saved_processing_queue_list_layout())
+        imagePreviewsTab.setLayout(layout)
+        return imagePreviewsTab
+
+    def create_saved_processing_queue_list_layout(self):
         save_group = QGroupBox("Saved Queue: ", self)
         save_group_layout = QVBoxLayout()
 
@@ -235,6 +318,10 @@ class ImageProcessor(QMainWindow):
 
         self.scale_factor_combo = QComboBox(self)
         self.scale_factor_combo.addItems(["1.5x", "2x", "4x", "6x", "8x"])
+
+        self.scale_factor_combo.setToolTip(
+            "Sets the scale factor to process with when upscaling/downscaling images.")
+
         self.scale_factor = self.scale_factor_combo.itemText(0)
         self.scale_factor_combo.currentTextChanged.connect(self.on_scale_factor_changed)
         h_layout.addWidget(QLabel("Scale Factor:"))
@@ -249,6 +336,10 @@ class ImageProcessor(QMainWindow):
 
         self.change_save_dir_btn = QPushButton('Change Save Directory', self)
         self.change_save_dir_btn.clicked.connect(self.change_save_directory)
+
+        self.change_save_dir_btn.setToolTip(
+            "Sets the directory path that new images will be saved at upon completion of file processing. Default is the directory where this script resides.")
+
         self.save_directory_label = QLabel("Save to: Not Set", self)
         all_save_dir_layout.addWidget(self.change_save_dir_btn)
         all_save_dir_layout.addWidget(self.save_directory_label)
@@ -315,11 +406,14 @@ class ImageProcessor(QMainWindow):
         process_btn.clicked.connect(self.process_queue)
         process_button_layout.addWidget(process_btn)
 
+        process_btn.setMinimumHeight(50)
+        process_button_group.setMinimumHeight(50)
+
         process_button_group.setLayout(process_button_layout)
         return process_button_group
 
     def create_file_info_panel_layout(self):
-        file_info_control_group = QGroupBox("File Information Panel: ", self)
+        file_info_control_group = QGroupBox(self)
         file_info_control_layout = QVBoxLayout()
 
         self.file_info_panel = QLabel("File Information:", self)
@@ -328,6 +422,9 @@ class ImageProcessor(QMainWindow):
         self.file_info_list = QListWidget(self)
         self.file_info_list.setSelectionMode(QListWidget.ExtendedSelection)
         file_info_control_layout.addWidget(self.file_info_list)
+
+        self.file_info_list.setMinimumWidth(200)
+        self.file_info_list.setMinimumHeight(200)
 
         self.total_info_label = QLabel("Total Files: 0, Total Size: 0.00 MB", self)
         file_info_control_layout.addWidget(self.total_info_label)
@@ -340,65 +437,81 @@ class ImageProcessor(QMainWindow):
         remove_btn.clicked.connect(self.remove_selected_image)
         file_info_control_layout.addWidget(remove_btn)
 
+        add_btn.setMinimumHeight(50)
+        remove_btn.setMinimumHeight(50)
+
         file_info_control_group.setLayout(file_info_control_layout)
         return file_info_control_group
 
     def create_processing_queue_control_panel_layout(self):
-        queue_control_group = QGroupBox("Processing Queue:", self)
+        queue_control_group = QGroupBox(self)
         queue_control_layout = QVBoxLayout()
 
-        self.queue_panel = QListWidget(self)
-        self.queue_panel.setSelectionMode(QListWidget.ExtendedSelection)
-        queue_control_layout.addWidget(self.queue_panel)
+        self.processing_queue_panel = QLabel("Processing Queue List:", self)
+        queue_control_layout.addWidget(self.processing_queue_panel)
+
+        self.processing_queue_list = QListWidget(self)
+        self.processing_queue_list.setSelectionMode(QListWidget.ExtendedSelection)
+        queue_control_layout.addWidget(self.processing_queue_list)
+
+        self.processing_queue_list.setMinimumWidth(200)
+        self.processing_queue_list.setMinimumHeight(200)
 
         self.total_processing_queue_label = QLabel("Total Files: 0, Total Size: 0.00 MB", self)
         queue_control_layout.addWidget(self.total_processing_queue_label)
 
         add_to_queue_btn = QPushButton('Add to Queue', self)
-        add_to_queue_btn.clicked.connect(self.on_add_to_queue_clicked)
+        add_to_queue_btn.clicked.connect(self.add_to_processing_queue)
         queue_control_layout.addWidget(add_to_queue_btn)
 
         remove_from_queue_btn = QPushButton('Remove from Queue', self)
         remove_from_queue_btn.clicked.connect(self.remove_from_queue)
         queue_control_layout.addWidget(remove_from_queue_btn)
 
-        self.processing_queue_pbar = QProgressBar(self)
-        self.processing_queue_pbar.setGeometry(30, 40, 200, 25)
-        queue_control_layout.addWidget(self.processing_queue_pbar)
-        self.processing_queue_pbar.setHidden(True)
+        add_to_queue_btn.setMinimumHeight(50)
+        remove_from_queue_btn.setMinimumHeight(50)
 
         queue_control_group.setLayout(queue_control_layout)
         return queue_control_group
 
     def create_image_preview_section_layout(self):
         preview_widget_group = QGroupBox("Image Preview Panel: ", self)
-        self.preview_layout = QGridLayout()
 
         preview_widget = QWidget()
-        preview_widget.setLayout(self.preview_layout)
+        self.preview_layout = QGridLayout(preview_widget)
 
         scroll_area = QScrollArea(self)
         scroll_area.setWidgetResizable(True)
         scroll_area.setWidget(preview_widget)
 
+        scroll_area.setMinimumWidth(250)
+        scroll_area.setMinimumHeight(250)
+
         preview_layout = QVBoxLayout()
         preview_layout.addWidget(scroll_area)
+
         preview_widget_group.setLayout(preview_layout)
 
         return preview_widget_group
+
+    def create_progress_bar_layout(self):
+        progress_bar_group = QGroupBox(self)
+        progress_bar_layout = QGridLayout()
+
+        self.progress_bar = QProgressBar(self)
+        self.progress_bar.setGeometry(30, 40, 200, 25)
+        progress_bar_layout.addWidget(self.progress_bar)
+        self.progress_bar.setHidden(True)
+
+        progress_bar_group.setLayout(progress_bar_layout)
+
+        return progress_bar_group
 
     def processing_logic(self):
         self.processing_mode = ('upscale' if self.upscale_btn.isChecked() else
                                 'downscale' if self.downscale_btn.isChecked() else
                                 'convert' if self.convert_btn.isChecked() else
                                 None)
-
-    def scale_images_logic(self):
-        self.scale_factor = self.scale_factor_combo.currentText()
-
-    def convert_images_logic(self):
-        self.convert_from_format = self.convert_from_combo.currentText().split('/')[0]
-        self.convert_to_format = self.convert_to_combo.currentText().split('/')[0]
 
     def on_scale_factor_changed(self, text):
         self.scale_factor = text
@@ -408,10 +521,6 @@ class ImageProcessor(QMainWindow):
 
     def on_convert_to_format_changed(self, text):
         self.convert_to_format = text.split('/')[0]
-
-    def closeEvent(self, event):
-        self.settings.setValue("size", self.size())
-        super().closeEvent(event)
 
     def ask_set_default_root(self, directory):
         if QMessageBox.question(self, "Set Default Root", "Would you like to set this as the default root directory?",
@@ -430,134 +539,182 @@ class ImageProcessor(QMainWindow):
         self.save_directory = directory or None
         self.save_directory_label.setText(f"Save to: {directory or 'Not Set'}")
 
-    def update_image_paths(self, old_path, new_path):
-        if old_path in self.filePaths:
-            self.filePaths.remove(old_path)
-        self.filePaths.append(new_path)
-        self.file_info_list.clear()
-        self.file_info_list.addItems(os.path.basename(path) for path in self.filePaths)
-        self.update_preview()
-
     def add_images(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Select Images", "", "Images (*.png *.jpg *.jpeg *.bmp *.gif)")
-        new_files = [f for f in files if f not in self.filePaths]
-        self.filePaths.extend(new_files)
+        existing_paths = {self.file_info_list.item(i).fullPath for i in range(self.file_info_list.count())}
+
+        for file_path in files:
+            if file_path not in existing_paths:
+                fileName = os.path.basename(file_path)
+                fileType = os.path.splitext(fileName)[1]
+                fileSize = os.path.getsize(file_path)
+
+                newItem = imageItem(fileName, file_path)
+                newItem.fileType = fileType
+                newItem.fileSize = fileSize
+
+                self.file_info_list.addItem(newItem)
+                existing_paths.add(file_path)
+            else:
+                print(f"Duplicate file skipped: {file_path}")
         self.update_file_info_list()
 
     def remove_selected_image(self):
         for item in self.file_info_list.selectedItems():
-            file_name = item.text().split(" - ")[0]
-            full_path = next((p for p in self.filePaths if os.path.basename(p) == file_name), None)
-            if full_path:
-                self.filePaths.remove(full_path)
-                self.file_info_list.takeItem(self.file_info_list.row(item))
+            self.file_info_list.takeItem(self.file_info_list.row(item))
 
     def update_file_info_list(self):
-        self.file_info_list.clear()
-        total_size = sum(os.path.getsize(p) for p in self.filePaths) / (1024 * 1024)
-        for path in self.filePaths:
-            file_size_mb = os.path.getsize(path) / (1024 * 1024)
-            self.file_info_list.addItem(f"{os.path.basename(path)} - {file_size_mb:.2f} MB")
-        self.total_info_label.setText(f"Total Files: {len(self.filePaths)}, Total Size: {total_size:.2f} MB")
+        total_size = 0
+        for i in range(self.file_info_list.count()):
+            image_item = self.file_info_list.item(i)
+            if isinstance(image_item, imageItem):
+                total_size += image_item.fileSize
+            else:
+                print(f"The item at index {i} is not an instance of imageItem.")
 
-    def on_add_to_queue_clicked(self):
+        total_size_mb = total_size / (1024 * 1024)
+        self.total_info_label.setText(
+            f"Total Files: {self.file_info_list.count()}, Total Size: {total_size_mb:.2f} MB"
+        )
+
+    def add_to_processing_queue(self):
         selected_items = self.file_info_list.selectedItems()
         if not selected_items:
-            print("No file selected to add to the queue.")
+            QMessageBox.warning(self, "No Selection", "Please select at least one file to add to the queue.")
             return
-        for item in selected_items:
-            file_path = item.text().split(" - ")[0]
-            self.add_to_queue(file_path)
 
-    def add_to_queue(self, file_path):
-        selected_items = self.file_info_list.selectedItems()
+        existing_paths = [self.processing_queue_list.item(i).fullPath for i in range(self.processing_queue_list.count())
+                          if isinstance(self.processing_queue_list.item(i), imageItem)]
+
         for item in selected_items:
-            file_path = item.text().split(" - ")[0]
-            if file_path not in self.filePaths:
-                self.filePaths.append(file_path)
-                self.queue_panel.addItem(file_path)
+            if isinstance(item, imageItem) and item.fullPath not in existing_paths:
+                fileName = item.fileName
+                fileType = item.fileType
+                fileSize = item.fileSize
+
+                newItem = imageItem(item.fileName, item.fullPath)
+                newItem.fileType = fileType
+                newItem.fileSize = fileSize
+                self.processing_queue_list.addItem(newItem)
+                existing_paths.append(item.fullPath)
+            elif isinstance(item, imageItem):
+                QMessageBox.warning(self, "Duplicate", f"The file {item.fileName} is already in the queue.")
+
         self.update_processing_queue_label()
 
     def remove_from_queue(self):
-        selected_items = self.queue_panel.selectedItems()
+        selected_items = self.processing_queue_list.selectedItems()
         if not selected_items:
-            print("No file selected to remove from the queue.")
+            QMessageBox.warning(self, "No Selection", "Please select at least one file to remove from the queue.")
             return
+
         for item in selected_items:
-            full_path = item.text()
-            if full_path in self.filePaths:
-                self.filePaths.remove(full_path)
-                row = self.queue_panel.row(item)
-                self.queue_panel.takeItem(row)
-            else:
-                print(f"Could not find the file path for {full_path} in the queue.")
+            self.processing_queue_list.takeItem(self.processing_queue_list.row(item))
+
         self.update_processing_queue_label()
 
+    def remove_from_queue_by_item(self, file_path):
+        for i in range(self.processing_queue_list.count()):
+            item = self.processing_queue_list.item(i)
+            if item.fullPath == file_path:  # Compare file paths
+                self.processing_queue_list.takeItem(i)
+                return
+
     def update_processing_queue_label(self):
-        total_size = sum(
-            os.path.getsize(item.text()) for i in range(self.queue_panel.count()) for item in [self.queue_panel.item(i)]
-            if os.path.isfile(item.text()))
+        total_size = 0
+        for i in range(self.processing_queue_list.count()):
+            image_item = self.processing_queue_list.item(i)
+            if isinstance(image_item, imageItem):
+                total_size += image_item.fileSize
+            else:
+                print(f"The item at index {i} is not an instance of imageItem.")
+
         total_size_mb = total_size / (1024 * 1024)
         self.total_processing_queue_label.setText(
-            f"Total Files: {self.queue_panel.count()}, Total Size: {total_size_mb:.2f} MB")
+            f"Total Files: {self.processing_queue_list.count()}, Total Size: {total_size_mb:.2f} MB"
+        )
 
-    def estimate_processing_time(self):
-        if self.filePaths:
-            start_time = time.time()
-            end_time = time.time()
-            total_time = (end_time - start_time) * len(self.filePaths)
-            self.eta_label.setText(f"Estimated Time: {total_time:.2f} seconds")
+    def get_saved_queue_items(self):
+        return [self.saved_queue_list.item(i) for i in range(self.saved_queue_list.count())
+                if isinstance(self.saved_queue_list.item(i), imageItem)]
 
-    def add_to_saved_queue(self, original_file_path, operation_suffix):
-        display_name = self.generate_display_name(original_file_path, operation_suffix)
-        if display_name not in self.get_saved_queue_files():
-            self.saved_queue_list.addItem(display_name)
+    def add_to_saved_queue(self, image_item, operation_suffix):
+        existing_items = self.get_saved_queue_items()
+        if not any(item.fullPath == image_item.fullPath for item in existing_items):
+            saved_image_item_name = self.generate_display_name(image_item, operation_suffix)
+            saved_image_item = imageItem(saved_image_item_name, image_item.fullPath)
+            saved_image_item.fileType = image_item.fileType
+            saved_image_item.fileSize = image_item.fileSize
+            self.saved_queue_list.addItem(saved_image_item)
 
-    def generate_display_name(self, original_file_path, operation_suffix):
-        base_filename = os.path.basename(original_file_path)
+    def generate_display_name(self, image_item, operation_suffix):
+        base_filename = image_item.fileName
         name, ext = os.path.splitext(base_filename)
         return f"{name}{operation_suffix}{ext}"
 
-    def get_saved_queue_files(self):
-        return [self.saved_queue_list.item(i).text() for i in range(self.saved_queue_list.count())]
-
     def process_queue(self):
-        if not (self.worker and self.worker.isRunning()):
-            self.initialize_worker_settings()
-            self.worker = Worker(self.filePaths, self.processing_mode, self.save_directory,
-                                 self.scale_factor, self.convert_from_format, self.convert_to_format)
-            self.worker.finished.connect(self.file_processed)
-            self.worker.progress.connect(self.update_progress_bar)
+        imagesToProcess = [self.processing_queue_list.item(i) for i in range(self.processing_queue_list.count())]
+        if self.worker is None or not self.worker.isRunning():
+            self.prepare_worker(
+                imagesToProcess, self.processing_mode, self.save_directory,
+                self.scale_factor, self.convert_from_format, self.convert_to_format
+            )
+            self.progress_bar.show()
             self.worker.start()
         else:
             print("A processing task is already running.")
 
-    def initialize_worker_settings(self):
-        self.scale_factor = self.scale_factor_combo.currentText()
-        self.convert_from_format = self.convert_from_combo.currentText().split('/')[0]
-        self.convert_to_format = self.convert_to_combo.currentText().split('/')[0]
-
-    def file_processed(self, original_file_path, operation_suffix):
-        self.add_to_saved_queue(original_file_path, operation_suffix)
-        original_basename = os.path.basename(original_file_path)
-        for i in range(self.queue_panel.count()):
-            if os.path.basename(self.queue_panel.item(i).text()) == original_basename:
-                self.queue_panel.takeItem(i)
+    def file_processed(self, image_item, operation_suffix):
+        for i in range(self.processing_queue_list.count()):
+            processing_item = self.processing_queue_list.item(i)
+            if processing_item == image_item:
+                self.processing_queue_list.takeItem(i)
                 break
-        self.update_processing_queue_label()
 
-    def progress_bar(self):
-        for i in range(101):
-            time.sleep(0.05)
-            self.update_progress_bar(i)
+        self.add_to_saved_queue(image_item, operation_suffix)
+        self.update_processing_queue_label()
+        self.update_image_preview()
+
+    def update_image_preview(self):
+        while self.preview_layout.count():
+            item = self.preview_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        for i in range(self.saved_queue_list.count()):
+            saved_item = self.saved_queue_list.item(i)
+            pixmap = QPixmap(saved_item.fullPath)
+            scaled_pixmap = pixmap.scaled(PREVIEW_IMAGE_WIDTH, PREVIEW_IMAGE_HEIGHT, Qt.KeepAspectRatio,
+                                          Qt.SmoothTransformation)
+            label = QLabel()
+            label.setPixmap(scaled_pixmap)
+            label.setAlignment(Qt.AlignCenter)
+            label.setMargin(MARGIN)
+            self.preview_layout.addWidget(label)
+
+    def on_all_files_processed(self, all_processed):
+        if all_processed:
+            self.progress_bar.hide()
+            self.show_processing_complete_dialog()
 
     def update_progress_bar(self, value):
-        self.processing_queue_pbar.setValue(value)
+        if hasattr(self, 'progress_bar') and self.progress_bar is not None:
+            self.progress_bar.setValue(value)
+
+    def show_processing_complete_dialog(self):
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Information)
+        msg_box.setText("Processing complete.")
+        msg_box.setWindowTitle("Done")
+        msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.buttonClicked.connect(msg_box.hide)
+        msg_box.exec_()
 
 def main():
     app = QApplication(sys.argv)
-    style = 'Fusion'
-    app.setStyle(style)
+    style = 'Windows'
+    app.setStyleSheet(Path('main.qss').read_text())
     ex = ImageProcessor()
     ex.show()
     sys.exit(app.exec_())

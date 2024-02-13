@@ -1,0 +1,348 @@
+/* main.qss */
+
+/* General QWidget Styling */
+QWidget {
+    background-color: #333; /* Darker background for better contrast */
+    color: #EEE; /* Lighter text for readability */
+    font-family: "Segoe UI"; /* Modern font */
+    font-size: 9pt;
+}
+
+/* File System & Processing Queue Panels */
+QGroupBox {
+    border: 1px solid #555; /* Subtle borders */
+    border-radius: 4px; /* Rounded corners */
+    padding: 2px;
+    margin-top: 2ex; /* Space above the group box */
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left; /* Position title within border */
+    padding: 0 3px;
+    color: #AAA; /* Light grey for less focus on title */
+}
+
+/* Buttons */
+QPushButton {
+    background-color: #5C5C5C; /* Unique button color */
+    color: #DDD; /* Light text */
+    border: 2px solid #444; /* Dark border for depth */
+    border-radius: 2px; /* Slight rounding */
+    padding: 5px 15px;
+    text-align: center;
+    margin: 4px;
+}
+
+QPushButton:hover {
+    background-color: #484E50; /* Change color on hover for interactivity */
+    border: 2px solid #666; /* Lighter border when hovered */
+}
+
+QPushButton:pressed {
+    background-color: #404040; /* Darken button when pressed */
+}
+
+QPushButton:disabled {
+    background-color: #2C2C2C; /* Disabled buttons are darker */
+    color: #666;
+    border: 2px solid #333;
+}
+
+/* Scroll Bars */
+QScrollBar:vertical {
+    border: none;
+    background: #383838; /* Scrollbar track */
+    width: 10px; /* Narrower scrollbar for more space */
+    margin: 10px 0 10px 0;
+}
+
+QScrollBar::handle:vertical {
+    background: #5C5C5C; /* Handle that matches button color */
+    min-height: 20px; /* Easier to grab */
+    border-radius: 4px;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    background: none; /* Minimal design */
+}
+
+/* Processing Options Combo Boxes */
+QComboBox {
+    border: 1px solid #555;
+    border-radius: 2px;
+    padding: 1px 18px 1px 3px;
+    background: #333;
+    color: #DDD;
+    min-width: 6em; /* Ensures all text is visible */
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 15px;
+    border-left-width: 0px; /* Seamless dropdown arrow */
+}
+
+QComboBox::down-arrow {
+    width: 8px;
+    height: 8px;
+}
+
+/* List View Styling */
+QListView {
+    show-decoration-selected: 1;
+    background: #333;
+    border: 1px solid #555;
+    outline: none; /* Removes focus outline for a cleaner look */
+}
+
+QListView::item {
+    color: #EEE;
+    padding: 5px;
+    margin: 2px;
+    border-bottom: 1px solid #444; /* Separate items visually */
+}
+
+QListView::item:selected {
+    background: #5C5C5C;
+    color: #FFF;
+}
+
+QListView::item:hover {
+    background: #484E50;
+}
+
+/* Image Preview Panel */
+QLabel#ImagePreviewPanel {
+    border: 1px solid #555;
+    background: #333;
+    color: #AAA;
+}
+
+/* Slider for Scaling */
+QSlider {
+    min-height: 15px;
+}
+
+QSlider::groove:horizontal {
+    border: 1px solid #555;
+    height: 5px;
+    background: #333;
+    border-radius: 2px;
+}
+
+QSlider::handle:horizontal {
+    background: #5C5C5C;
+    border: 1px solid #444;
+    width: 15px;
+    margin: -5px 0; /* Align with the groove */
+    border-radius: 2px;
+}
+
+QSlider::sub-page:horizontal {
+    background: #444; /* Color before the slider handle */
+}
+
+QSlider::add-page:horizontal {
+    background: #333; /*
+/* Color after the slider handle */
+}
+
+/* Tabs */
+QTabWidget::pane {
+    border-top: 2px solid #444; /* Color and style for the active tab line */
+}
+
+QTabBar::tab {
+    background: #333;
+    color: #DDD;
+    padding: 5px;
+    border: 1px solid #444;
+    border-bottom: none; /* Active tab appears connected to content */
+    min-width: 80px; /* Minimum width for legibility */
+}
+
+QTabBar::tab:selected {
+    background: #5C5C5C; /* Highlight the selected tab */
+    color: #FFF;
+}
+
+QTabBar::tab:!selected {
+    margin-top: 2px; /* Slight offset for unselected tabs for depth */
+}
+
+QTabBar::tab:hover {
+    background: #484E50; /* Hover state for tabs */
+}
+
+/* Tooltips */
+QToolTip {
+    background-color: #555;
+    color: #EEE;
+    border: 1px solid #333;
+    padding: 4px;
+    border-radius: 2px;
+    opacity: 200; /* Slightly see-through for a modern feel */
+}
+
+/* Checkboxes */
+QCheckBox {
+    spacing: 5px;
+}
+
+QCheckBox::indicator {
+    width: 13px;
+    height: 13px;
+}
+
+QCheckBox::indicator:unchecked {
+}
+
+QCheckBox::indicator:checked {
+}
+
+/* Radio Buttons */
+QRadioButton {
+    spacing: 5px;
+}
+
+QRadioButton::indicator {
+    width: 13px;
+    height: 13px;
+}
+
+QRadioButton::indicator:unchecked {
+}
+
+QRadioButton::indicator:checked {
+}
+
+/* Spin Boxes */
+QSpinBox {
+    padding-right: 15px; /* make room for the arrows */
+    border: 1px solid #555;
+    background-color: #333;
+    color: #DDD;
+}
+
+QSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right; /* position at the top right corner */
+}
+
+QSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right; /* position at the bottom right corner */
+}
+
+QSpinBox::up-arrow {
+    width: 7px;
+    height: 7px;
+}
+
+QSpinBox::down-arrow {
+    width: 7px;
+    height: 7px;
+}
+
+/* Line Edit */
+QLineEdit {
+    border: 1px solid #555;
+    background-color: #333;
+    color: #DDD;
+    padding: 0 8px;
+    selection-background-color: #5C5C5C;
+    selection-color: #FFF;
+}
+
+/* Progress Bar */
+QProgressBar {
+    border: 1px solid #555;
+    border-radius: 2px;
+    text-align: center;
+}
+
+QProgressBar::chunk {
+    background-color: #5C5C5C;
+    width: 20px; /* Chunk size */
+}
+
+/* Style for the tab widget */
+QTabWidget::pane {
+    border-top: 2px solid #5b9bd5;
+    position: absolute;
+    top: -0.5em;
+    color: #fff;
+    background: #333;
+}
+
+/* Style for the tab bar */
+QTabBar::tab {
+    background: #444;
+    color: #fff;
+    padding: 5px;
+    border: 1px solid #666;
+    border-bottom: none;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    min-width: 15ex;
+    min-height: 5ex;
+    margin-right: 2px;
+}
+
+QTabBar::tab:selected, QTabBar::tab:hover {
+    background: #555;
+}
+
+QTabBar::tab:selected {
+    border-color: #5b9bd5;
+    border-bottom-color: #333; /* Same as the pane color */
+}
+
+QTabBar::tab:!selected {
+    margin-top: 2px; /* Make non-selected tabs look smaller */
+}
+
+/* Style for the tab close button */
+QTabBar::close-button {
+    subcontrol-origin: padding;
+    subcontrol-position: right; /* position at the right by default */
+    background: #777;
+    border: 1px solid #333;
+    border-radius: 2px;
+    width: 16px; /* 16 + 2*1px border-width = 18px allocated above */
+    height: 16px;
+    margin-right: 2px;
+}
+
+QTabBar::close-button:hover {
+    background: #f00;
+    color: #fff;
+}
+
+QTreeView {
+    background-color: #f2f2f2; /* Light gray background for the tree view */
+    color: #333333; /* Dark text color for contrast */
+}
+
+QTreeView::item {
+    border-bottom: 1px solid #dcdcdc; /* Light gray border for each item */
+}
+
+QTreeView::item:selected {
+    background-color: #a0a0a0; /* Darker background for selected item */
+    color: #ffffff; /* White text color for selected item */
+}
+
+QTreeView::branch {
+    background: #e8e8e8; /* Lighter background for branch area */
+}
+
+/* Modify the header section if needed */
+QHeaderView::section {
+    background-color: #c0c0c0; /* Gray background for headers */
+    color: #000000; /* Black text for headers */
+    border: 1px solid #a0a0a0;
+    padding-left: 4px;
+}
