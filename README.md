@@ -7,9 +7,6 @@ PyImgScale is a local GUI image processing application built on PyQt5 and Pillow
 
 It is still currently in active development.
 
-## Current Version
-PyImgScale - v0.2
-
 ## Note
 PyImgScale is not finished at the moment. There are still a few bugs, code cleaning, and features to implement (image upscaling/downscaling are close to being implemented, but just have not gotten around it just yet!). Single file and batch conversions of files should 
 
@@ -48,6 +45,9 @@ python PyImgScale.py
 ```
 
 Once started, the application will present you with the main interface where you can navigate your filesystem, select images, choose processing options, and initiate image processing.
+
+## Current Version
+PyImgScale - v0.2
 
 ## Development Status
 This tool is currently under development. Some features might not be fully implemented, and functionality is subject to change.
