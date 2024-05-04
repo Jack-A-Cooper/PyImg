@@ -188,9 +188,10 @@ class ImageProcessor(QMainWindow):
         self.filesystem_panel = FolderView()
         self.filesystem_panel.default_root_changed.connect(self.ask_set_default_root)
         self.settings = QSettings("User", "PyImgScale")
-        self.scale_factor = "1.0x"
+        self.scale_factor = "1.5"
         self.convert_from_format = "png"
         self.convert_to_format = "png"
+        self.upscale_model = None
         self.worker = None
         self.preview_layout = QGridLayout()
         self.initUI()
@@ -268,6 +269,9 @@ class ImageProcessor(QMainWindow):
         layout.addWidget(self.create_process_settings_layout())
         layout.addWidget(self.create_scale_settings_layout())
         layout.addWidget(self.create_save_dir_settings_layout())
+        # layout.addWidget(self.create_model_settings_layout())
+        newWidget = QComboBox(self)
+        layout.addWidget(newWidget)
         optionsTab.setLayout(layout)
         return optionsTab
 
@@ -311,6 +315,18 @@ class ImageProcessor(QMainWindow):
 
         p_group.setLayout(p_layout)
         return p_group
+        
+    def create_model_settings_layout(self):
+        m_group = QGroupBox("Model Selection: ", self)
+        m_layout = QHBoxLayout()
+
+        self.model_option_combo = QComboBox(self)
+        self.model_option_combo.addItems(["LASCOZ", "ESRGAN", "ESRGAN 2"])
+        m_layout.addWidget(QLabel("Model Option:"))
+        m_layout.addWidget(self.model_option_combo)
+
+        m_group.setLayout(m_layout)
+        return m_layout
 
     def create_scale_settings_layout(self):
         h_group = QGroupBox("Scale Settings: ", self)
@@ -329,6 +345,9 @@ class ImageProcessor(QMainWindow):
 
         h_group.setLayout(h_layout)
         return h_group
+		
+    def create_upscale_model_option(self):
+        pass
 
     def create_save_dir_settings_layout(self):
         all_save_dir_group = QGroupBox("Save Settings Options: ", self)
